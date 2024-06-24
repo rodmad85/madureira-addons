@@ -5,13 +5,13 @@ from odoo.exceptions import ValidationError
 class OrcaSale(models.Model):
     _inherit = 'sale.order'
 
-    horas_mo = fields.Integer(string='Total Horas', required=True, compute='_total_horas')
+    horas_mo = fields.Integer(string='Total Horas', required=True)
     valor_horas = fields.Monetary(string='Valor Horas', required=True, store=True)
     valor_total_horas = fields.Monetary(string='Valor Total Horas', copy=True, compute='_vtotal_horas')
     valor_total_hmanual = fields.Monetary(string='Valor Horas Manual', store=True)
     # imposto = fields.Many2one('os.impostos.line', string='Imposto %', store=True)
-    materia_prima = fields.Monetary(string='Matéria Prima', compute='_total_mp')
-    terceiros = fields.Monetary(string='Terceiros', compute='_total_terceiros')
+    materia_prima = fields.Monetary(string='Matéria Prima')
+    terceiros = fields.Monetary(string='Terceiros')
     comissao = fields.Float(string='% Comissão')
     resultado = fields.Monetary(string='Total Sem Imposto', store=False)
     horas_total = fields.Many2many('orca.horas.total', 'horas_total_rel', 'horas_id', 'order_id', string='Horas Previstas')
@@ -19,39 +19,32 @@ class OrcaSale(models.Model):
 
 
     def _vtotal_horas(self):
+        for rec in self:
+            total = sum(rec.order_line_orca.mapped('mo_total'))
+            matp = sum(rec.order_line_orca.filtered(lambda l: l.mp > 1).mapped('mp'))
+            mot = sum(rec.order_line_orca.mapped('mo'))
+            terc = sum(rec.order_line_orca.mapped('terc'))
 
-            total = sum(self.order_line_orca.mapped('mo_total')) if self.order_line_orca else 0
-            if total:
-                self.valor_total_horas = total
+            if terc:
+                rec.terceiros = terc
             else:
-                self.valor_total_horas = self.valor_total_horas
+                rec.terceiros = rec.terceiros
 
-    def _total_horas(self):
-
-            total = sum(self.order_line_orca.mapped('mo')) if self.order_line_orca else 0
-            if total:
-                self.horas_mo = total
+            if mot:
+                rec.horas_mo = mot
             else:
-                self.horas_mo = self.horas_mo
+                rec.horas_mo = rec.horas_mo
 
-    def _total_terceiros(self):
-
-            total = sum(self.order_line_orca.mapped('terc')) if self.order_line_orca else 0
-            if total:
-                self.terceiros = total
+            if matp:
+                rec.materia_prima = total
             else:
-                self.terceiros = self.terceiros
-
-    def _total_mp(self):
-
-
-            total = sum(self.order_line_orca.filtered(lambda l: l.mp > 1).mapped('mp')) if self.order_line_orca else 0
+                mp = rec.materia_prima  # self.env['sale.order'].browse(self.env.context.get('active_ids')).materia_prima
+                rec.materia_prima = mp
 
             if total:
-                self.materia_prima = total
+                rec.valor_total_horas = total
             else:
-                    mp = self.env['sale.order'].browse(self.env.context.get('active_ids')).materia_prima
-                    self.materia_prima = mp
+                rec.valor_total_horas = rec.valor_total_horas
 
 
     @api.onchange('valor_horas', 'horas_mo')
